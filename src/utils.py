@@ -89,9 +89,10 @@ class BasicCNN(nn.Module):
         self.pooling = nn.MaxPool2d(pooling_size)
         self.conv3 = nn.Conv2d(n_filters, n_filters, kernel_size=kernel_size)
         self.activation = nn.ReLU()
-        # output dimension = [(i+2p-k)/2] + 1
-        self.dense_layer = nn.Linear(n_filters * ((image_size - 2 * kernel_size + 2) // 2) * ((image_size - 2 * kernel_size + 2) // 2), n_filters)
-        self.classifier = nn.Linear(n_filters, num_classes)
+        # output dimension = [(i+2p-k)/s] + 1
+        # i = n_filters, p = 0, s = 1, k = 4 => [n_features - k] + 1
+        output_dimension = n_filters - kernel_size + 1 
+        self.classifier = nn.Linear(output_dimension, num_classes)
 
     def forward(self, x):
         x = self.conv1(x)
