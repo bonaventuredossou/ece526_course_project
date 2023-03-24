@@ -103,7 +103,7 @@ class BasicCNN(nn.Module):
         out = self.classifier(x)
         return out
 
-def preprocessing(data_dir: str, batch_size: int) -> Dict[DataLoader]:
+def preprocessing(data_dir: str, batch_size: int) -> Dict[DataLoader, DataLoader]:
     # Data augmentation and normalization for training & Just normalization for validation
     input_size = (224, 224)
     data_transforms = {
