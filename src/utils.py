@@ -134,7 +134,7 @@ def preprocessing(data_dir: str, batch_size: int) -> Dict[DataLoader, DataLoader
     return dataloaders_dict
 
 # adapted from Pytorch Tutorial on Pretrained CV models
-def train_model(model: BasicCNN, dataloaders: Dict[DataLoader], batch_size: int, criterion: torch.nn.CrossEntropyLoss,
+def train_model(model: BasicCNN, dataloaders: Dict[DataLoader, DataLoader], batch_size: int, criterion: torch.nn.CrossEntropyLoss,
                  optimizer: torch.optim.Optimizer, num_epochs: int, lr: float, device: torch.device, strategy: str) -> Tuple[List, List, List, List]:
     
     if not os.path.exists('../models'):
