@@ -73,7 +73,7 @@ def compute_bald(entropies: array, average_entropies: array, top_k: int = 100) -
 # conv_kernel, kernel_size, pooling, dense layer, dropout
 class BasicCNN(nn.Module):
     def __init__(self, channels=3, n_filters=32, kernel_size=4, pooling_size=2,
-                 dropout=0.3, num_classes=2):
+                 dropout=0.3, num_classes=2, image_size=224):
         super(BasicCNN, self).__init__()
         """
         n_filters: number of filters
@@ -89,6 +89,8 @@ class BasicCNN(nn.Module):
         self.pooling = nn.MaxPool2d(pooling_size)
         self.conv3 = nn.Conv2d(n_filters, n_filters, kernel_size=kernel_size)
         self.activation = nn.ReLU()
+        # output dimension = [(i+2p-k)/2] + 1
+        self.dense_layer = nn.Linear(n_filters * ((image_size - 2 * kernel_size + 2) // 2) * ((image_size - 2 * kernel_size + 2) // 2), n_filters)
         self.classifier = nn.Linear(n_filters, num_classes)
 
     def forward(self, x):
@@ -99,7 +101,7 @@ class BasicCNN(nn.Module):
         x = self.conv3(x)
         x = self.activation(self.bn(x))
         x = self.pooling(x)
-        x = x.view(x.shape[0], -1)
+        x = self.dense_layer(x)
         out = self.classifier(x)
         return out
 
