@@ -5,6 +5,10 @@ import os
 from tqdm import tqdm
 import shutil
 from typing import List, Tuple
+import torch.optim as optim
+
+num_gpus = [i for i in range(torch.cuda.device_count())]
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # data source https://challenge.isic-archive.com/data/#2016
 # build datasets splits
@@ -67,3 +71,40 @@ data_dir = '../data'
 batch_size = 8
 
 dataloader_dict = preprocessing(data_dir, batch_size)
+def build_model() -> BasicCNN:
+    model = BasicCNN()
+    if len(num_gpus) > 1:
+        print("Let's use", len(num_gpus), "GPUs!")
+        os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(str(x) for x in num_gpus)
+        model = torch.nn.DataParallel(model, device_ids=num_gpus)
+        model = model.module
+    model = model.to(device)
+    return model
+
+model = build_model()
+batch_size, num_epochs, lr = 8, 50, 1e-3
+
+optimizer = optim.AdamW(model.parameters(), lr=lr)
+criterion = nn.CrossEntropyLoss()
+
+def run_strategy(strategy_name: str) -> None:
+    if strategy_name == 'normal':
+        # meaning no uncertainty
+        train_loss, train_acc, eval_loss, eval_acc = train_model(model, dataloader_dict, batch_size, criterion, optimizer, num_epochs, lr, device, strategy_name)
+
+        if not os.path.exists('../results'):
+            os.mkdir('../results')
+
+        results_frame = pd.DataFrame()
+        results_frame['train_loss'] = train_loss        
+        results_frame['train_acc'] = train_acc        
+        results_frame['eval_loss'] = eval_loss        
+        results_frame['eval_acc'] = eval_acc
+        results_frame.to_csv('../results/{}_training_results.csv'.format(strategy_name), index=False)
+
+    else:
+        # to Implement for Uncertainty sampling
+        NotImplementedError
+
+if __name__ == '__main__':
+    run_strategy('normal')
