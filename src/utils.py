@@ -73,7 +73,7 @@ def compute_bald(entropies: array, average_entropies: array, top_k: int = 100) -
 # conv_kernel, kernel_size, pooling, dense layer, dropout
 class BasicCNN(nn.Module):
     def __init__(self, channels=3, n_filters=32, kernel_size=4, pooling_size=2,
-                 dropout=0.3, num_classes=2, image_size=224):
+                 dropout=0.3, num_classes=2, dense_size=128, image_size=224):
         super(BasicCNN, self).__init__()
         """
         n_filters: number of filters
@@ -81,27 +81,30 @@ class BasicCNN(nn.Module):
         pooling: pooling size
         dropout: dropout rate
         num_classes: # of output classes
+        hyper parameters chosen as stated in the paper
         """
         self.conv1 = nn.Conv2d(channels, n_filters, kernel_size=kernel_size)
-        self.bn = nn.BatchNorm2d(n_filters)
         self.conv2 = nn.Conv2d(n_filters, n_filters, kernel_size=kernel_size)
-        self.dropout = nn.Dropout(dropout)
+        self.dropout1 = nn.Dropout(0.5)
+        self.dropout2 = nn.Dropout(0.25)
         self.pooling = nn.MaxPool2d(pooling_size)
         self.conv3 = nn.Conv2d(n_filters, n_filters, kernel_size=kernel_size)
         self.activation = nn.ReLU()
-        # output dimension = [(i+2p-k)/s] + 1
-        # i = n_filters, p = 0, s = 1, k = 2 (since it is applied after pooling) => [n_features - k] + 1
-        output_dimension = n_filters - pooling_size + 1 
-        self.classifier = nn.Linear(output_dimension, num_classes)
+        self.dense = nn.Linear(n_filters * ((image_size - 2 * kernel_size + 2) // 2) * ((image_size - 2 * kernel_size + 2) // 2), dense_size)
+        self.classifier = nn.Linear(n_filters, num_classes)
 
     def forward(self, x):
+        # convolution-relu-convolution-relu-max pooling-dropout-dense-relu-dropout-dense-softmax
         x = self.conv1(x)
-        x = self.activation(self.bn(x))
+        x = self.activation(x)
         x = self.conv2(x)
-        x = self.activation(self.bn(x))
-        x = self.conv3(x)
-        x = self.activation(self.bn(x))
+        x = self.activation(x)
         x = self.pooling(x)
+        x = self.dropout1(x)
+        x = torch.flatten(x, 1)
+        x = self.dense(x)
+        x = self.activation(x)
+        x = self.dropout2(x)
         out = self.classifier(x)
         return out
 
