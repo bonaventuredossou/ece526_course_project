@@ -91,7 +91,7 @@ class BasicCNN(nn.Module):
         self.conv3 = nn.Conv2d(n_filters, n_filters, kernel_size=kernel_size)
         self.activation = nn.ReLU()
         self.dense = nn.Linear(n_filters * ((image_size - 2 * kernel_size + 2) // 2) * ((image_size - 2 * kernel_size + 2) // 2), dense_size)
-        self.classifier = nn.Linear(n_filters, num_classes)
+        self.classifier = nn.Linear(dense_size, num_classes)
 
     def forward(self, x):
         # convolution-relu-convolution-relu-max pooling-dropout-dense-relu-dropout-dense-softmax
