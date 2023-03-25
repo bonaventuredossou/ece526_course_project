@@ -82,7 +82,7 @@ def build_model() -> BasicCNN:
     return model
 
 model = build_model()
-batch_size, num_epochs, lr = 8, 5, 1e-3
+batch_size, num_epochs, lr = 32, 200, 1e-4
 
 optimizer = optim.Adam(model.parameters(), lr=lr)
 criterion = nn.CrossEntropyLoss()

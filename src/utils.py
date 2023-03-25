@@ -85,8 +85,8 @@ class BasicCNN(nn.Module):
         """
         self.conv1 = nn.Conv2d(channels, n_filters, kernel_size=kernel_size)
         self.conv2 = nn.Conv2d(n_filters, n_filters, kernel_size=kernel_size)
-        self.dropout1 = nn.Dropout(0.5)
-        self.dropout2 = nn.Dropout(0.25)
+        self.dropout1 = nn.Dropout(0.25)
+        self.dropout2 = nn.Dropout(0.50)
         self.pooling = nn.MaxPool2d(pooling_size)
         self.conv3 = nn.Conv2d(n_filters, n_filters, kernel_size=kernel_size)
         self.activation = nn.ReLU()
