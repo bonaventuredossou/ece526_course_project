@@ -232,7 +232,8 @@ def train_model(model: BasicCNN, dataloaders: Dict[DataLoader, DataLoader, DataL
     
     return train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc
 
-def test_model(model: BasicCNN, dataloaders: Dict[Any], criterion: torch.nn.CrossEntropyLoss, 
+def test_model(model: BasicCNN, dataloaders: Dict[DataLoader, DataLoader, DataLoader, Any],
+               criterion: torch.nn.CrossEntropyLoss, 
                device: torch.device) -> Tuple[float, float]:
     loss = 0.0
     corrects = 0.0
