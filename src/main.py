@@ -88,7 +88,7 @@ def set_dropout(trained_model):
 def run_strategy(strategy_name: str) -> None:
 
     data_dir = '../data'
-    batch_size, num_epochs, lr = 32, 100, 1e-4
+    batch_size, num_epochs, lr = 8, 100, 1e-4
     dataloader_dict = preprocessing(data_dir, batch_size, strategy_name)
     model = build_model()
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=lr)
