@@ -1,8 +1,8 @@
 import torch
-from torch.utils.data import Dataset, Subset, DataLoader
+from torch.utils.data import Dataset, Subset, DataLoader, SubsetRandomSampler
 import random
 import numpy as np
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Any
 from numpy import array
 import torch
 import torch.nn as nn
@@ -108,7 +108,7 @@ class BasicCNN(nn.Module):
         out = self.classifier(x)
         return out
 
-def preprocessing(data_dir: str, batch_size: int) -> Dict[DataLoader, DataLoader]:
+def preprocessing(data_dir: str, batch_size: int, strategy_name: str) -> Dict[Any]:
     # Data augmentation and normalization for training & Just normalization for validation
     input_size = (224, 224)
     data_transforms = {
@@ -134,12 +134,34 @@ def preprocessing(data_dir: str, batch_size: int) -> Dict[DataLoader, DataLoader
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])}
 
-    image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x]) for x in ['train', 'val', 'test']}
-    dataloaders_dict = {x[0]: torch.utils.data.DataLoader(image_datasets[x[0]], batch_size=batch_size, shuffle=x[1], num_workers=4) for x in [('train', True), ('val', False), ('test', False)]}
+    image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x]) 
+                      for x in ['train', 'val', 'test']}
+
+    dataloaders_dict = {}     
+    dataloaders_dict['train'] = torch.utils.data.DataLoader(image_datasets['train'], batch_size=batch_size, shuffle=True, num_workers=4)
+    dataloaders_dict['test'] = torch.utils.data.DataLoader(image_datasets['test'], batch_size=batch_size, shuffle=False, num_workers=4)
+
+    if strategy_name != 'normal':
+        validation_split = 0.5 # we spliting the valiadation into validation and pool
+        val_dataset_size = len(image_datasets['val'])
+        indices = list(range(val_dataset_size))
+        split = int(np.floor(validation_split * validation_split))
+        val_indices, pool_indices = indices[split:], indices[:split]
+
+        val_sampler = SubsetRandomSampler(val_indices)
+        pool_sampler = SubsetRandomSampler(pool_indices)
+
+        dataloaders_dict['val'] = DataLoader(image_datasets['val'], batch_size=batch_size,
+                                                              shuffle=False, num_workers=4, sampler=val_sampler)
+        dataloaders_dict['pool'] = DataLoader(image_datasets['val'], batch_size=batch_size,
+                                                               shuffle=False, num_workers=4, sampler=pool_sampler)
+    else:
+        dataloaders_dict['val'] = DataLoader(image_datasets['val'], batch_size=batch_size, shuffle=False, num_workers=4)
+
     return dataloaders_dict
 
 # adapted from Pytorch Tutorial on Pretrained CV models
-def train_model(model: BasicCNN, dataloaders: Dict[DataLoader, DataLoader], batch_size: int, criterion: torch.nn.CrossEntropyLoss,
+def train_model(model: BasicCNN, dataloaders: Dict[Any], batch_size: int, criterion: torch.nn.CrossEntropyLoss,
                  optimizer: torch.optim.Optimizer, num_epochs: int, lr: float, device: torch.device, strategy: str) -> Tuple[List, List, List, List]:
     
     if not os.path.exists('../models'):
@@ -147,7 +169,8 @@ def train_model(model: BasicCNN, dataloaders: Dict[DataLoader, DataLoader], batc
 
     best_loss = 1000
     train_loss, train_acc, eval_loss, eval_acc = [], [], [], []
-
+    path = os.path.join('../models/isic_basic_cnn_{}_{}_{}_{}.pt'.format(batch_size, num_epochs, lr, strategy))
+    
     for epoch in range(num_epochs):
 
         print('Epoch {}/{}'.format(epoch + 1, num_epochs))
@@ -195,8 +218,32 @@ def train_model(model: BasicCNN, dataloaders: Dict[DataLoader, DataLoader], batc
             if phase == 'val' and epoch_loss < best_loss:
                 # selecting the weights with lowest eval loss
                 best_loss = epoch_loss
-                path = os.path.join('../models/isic_basic_cnn_{}_{}_{}_{}.pt'.format(batch_size, num_epochs, lr, strategy))
                 torch.save(model.state_dict(), path)
     
+    checkpoints = torch.load(path)
+    model.load_state_dict(checkpoints)
+
+    test_loss, test_acc = test_model(model, dataloaders, criterion, device)
     print('Best val loss: {:4f}'.format(best_loss))
-    return train_loss, train_acc, eval_loss, eval_acc
+    print('Test loss: {:4f}'.format(test_loss))
+    print('Test Accuracy: {:4f}'.format(test_acc))
+    
+    return train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc
+
+def test_model(model: BasicCNN, dataloaders: Dict[Any], criterion: torch.nn.CrossEntropyLoss, 
+               device: torch.device) -> Tuple[float, float]:
+    loss = 0.0
+    corrects = 0.0
+    for inputs, labels in dataloaders['test']:
+        inputs = inputs.to(device)
+        labels = labels.to(device)
+        with torch.no_grad():
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            _, preds = torch.max(outputs, 1)
+        loss += loss.item() * inputs.size(0)
+        corrects += torch.sum(preds == labels.data)
+    test_loss = loss / len(dataloaders['test'].dataset)
+    test_acc = corrects.double() / len(dataloaders['test'].dataset)
+    return test_loss, test_acc.item()
+ 

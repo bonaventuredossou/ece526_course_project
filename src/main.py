@@ -17,12 +17,12 @@ def create_train_val_splits(path: str)-> None:
     dataset = pd.read_csv(path)
     label_map = {'benign': 0, 'malignant': 1}
     dataset['labels'] = dataset['labels'].apply(lambda x: label_map[x])
-    train, val = train_test_split(dataset, stratify=dataset['labels'], train_size=0.8, random_state=1234)
+    train, val = train_test_split(dataset, stratify=dataset['labels'], train_size=0.66, random_state=1234)
 
     train.to_csv('../train_split.csv', index=False)
     val.to_csv('../val_split.csv', index=False)
 
-# only for the first time to generate the splits
+# only for the first time to generate the splits ~600 images for training, and 300 for evaluation
 # train_path = '../ISBI2016_Training_Labels.csv'
 # create_train_val_splits(train_path)
 
@@ -36,7 +36,8 @@ def make_dirs()-> None:
             if not os.path.exists(os.path.join(split_dir, str(category))):
                 os.mkdir(os.path.join(split_dir, str(category)))
 
-make_dirs()
+# Run only for the first time
+# make_dirs()
 
 def create_images_to_dir(dataset_split: str, dataset_path: str)-> None:
     data_paths, data_labels = get_image_and_labels(dataset_path)
@@ -67,10 +68,6 @@ def get_image_and_labels(path: str) -> Tuple[List, List]:
 # create_images_to_dir('val', eval_path)
 # create_images_to_dir('test', test_path)
 
-data_dir = '../data'
-batch_size = 8
-
-dataloader_dict = preprocessing(data_dir, batch_size)
 def build_model() -> BasicCNN:
     model = BasicCNN()
     if len(num_gpus) > 1:
@@ -81,26 +78,31 @@ def build_model() -> BasicCNN:
     model = model.to(device)
     return model
 
-model = build_model()
-batch_size, num_epochs, lr = 32, 100, 1e-4
-
-optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9)
-criterion = nn.CrossEntropyLoss()
-
 def run_strategy(strategy_name: str) -> None:
+
+    data_dir = '../data'
+    batch_size = 8
+
+    dataloader_dict = preprocessing(data_dir, batch_size, strategy_name)
+
+    model = build_model()
+    batch_size, num_epochs, lr = 32, 100, 1e-4
+
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=lr)
+    criterion = nn.CrossEntropyLoss()
+    
+    if not os.path.exists('../results'):
+        os.mkdir('../results')
+
     if strategy_name == 'normal':
         # meaning no uncertainty
-        train_loss, train_acc, eval_loss, eval_acc = train_model(model, dataloader_dict, batch_size, criterion, optimizer, num_epochs, lr, device, strategy_name)
-
-        if not os.path.exists('../results'):
-            os.mkdir('../results')
-
+        train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc = train_model(model, dataloader_dict, batch_size, criterion, optimizer, num_epochs, lr, device, strategy_name)
         results_frame = pd.DataFrame()
         results_frame['train_loss'] = train_loss        
         results_frame['train_acc'] = train_acc        
         results_frame['eval_loss'] = eval_loss        
         results_frame['eval_acc'] = eval_acc
-        results_frame.to_csv('../results/{}_training_results.csv'.format(strategy_name), index=False)
+        results_frame.to_csv('../results/{}_training_results_{}_{}.csv'.format(strategy_name, test_loss, test_acc), index=False)
 
     else:
         # to Implement for Uncertainty sampling
