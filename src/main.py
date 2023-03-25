@@ -82,7 +82,7 @@ def build_model() -> BasicCNN:
     return model
 
 model = build_model()
-batch_size, num_epochs, lr = 8, 50, 1e-3
+batch_size, num_epochs, lr = 8, 5, 1e-3
 
 optimizer = optim.AdamW(model.parameters(), lr=lr)
 criterion = nn.CrossEntropyLoss()
@@ -95,6 +95,7 @@ def run_strategy(strategy_name: str) -> None:
         if not os.path.exists('../results'):
             os.mkdir('../results')
 
+        print(train_loss)
         results_frame = pd.DataFrame()
         results_frame['train_loss'] = train_loss        
         results_frame['train_acc'] = train_acc        
