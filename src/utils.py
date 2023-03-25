@@ -147,7 +147,7 @@ def train_model(model: BasicCNN, dataloaders: Dict[DataLoader, DataLoader], batc
 
     best_loss = 1000
     train_loss, train_acc, eval_loss, eval_acc = [], [], [], []
-    
+
     for epoch in range(num_epochs):
 
         print('Epoch {}/{}'.format(epoch + 1, num_epochs))
@@ -185,10 +185,10 @@ def train_model(model: BasicCNN, dataloaders: Dict[DataLoader, DataLoader], batc
 
             if phase == 'train':
                 train_loss.append(epoch_loss)
-                train_acc.append(epoch_acc)
+                train_acc.append(epoch_acc.item())
             else:
                 eval_loss.append(epoch_loss)
-                eval_acc.append(epoch_acc)
+                eval_acc.append(epoch_acc.item())
 
             print('{} loss: {:.4f} acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
 
