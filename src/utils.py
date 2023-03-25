@@ -108,7 +108,7 @@ class BasicCNN(nn.Module):
         out = self.classifier(x)
         return out
 
-def preprocessing(data_dir: str, batch_size: int, strategy_name: str) -> Dict[Any]:
+def preprocessing(data_dir: str, batch_size: int, strategy_name: str) -> Dict[DataLoader, DataLoader, DataLoader, Any]:
     # Data augmentation and normalization for training & Just normalization for validation
     input_size = (224, 224)
     data_transforms = {
@@ -161,8 +161,10 @@ def preprocessing(data_dir: str, batch_size: int, strategy_name: str) -> Dict[An
     return dataloaders_dict
 
 # adapted from Pytorch Tutorial on Pretrained CV models
-def train_model(model: BasicCNN, dataloaders: Dict[Any], batch_size: int, criterion: torch.nn.CrossEntropyLoss,
-                 optimizer: torch.optim.Optimizer, num_epochs: int, lr: float, device: torch.device, strategy: str) -> Tuple[List, List, List, List]:
+def train_model(model: BasicCNN, dataloaders: Dict[DataLoader, DataLoader, DataLoader, Any],
+                batch_size: int, criterion: torch.nn.CrossEntropyLoss,
+                optimizer: torch.optim.Optimizer, num_epochs: int, lr: float,
+                device: torch.device, strategy: str) -> Tuple[List, List, List, List]:
     
     if not os.path.exists('../models'):
         os.mkdir('../models')
