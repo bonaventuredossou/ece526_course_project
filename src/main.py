@@ -95,7 +95,7 @@ def run_strategy(strategy_name: str) -> None:
         if not os.path.exists('../results'):
             os.mkdir('../results')
 
-        print(train_loss)
+        print(type(train_loss), type(train_loss[0]))
         results_frame = pd.DataFrame()
         results_frame['train_loss'] = train_loss        
         results_frame['train_acc'] = train_acc        
