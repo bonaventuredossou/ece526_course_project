@@ -146,11 +146,12 @@ def train_model(model: BasicCNN, dataloaders: Dict[DataLoader, DataLoader], batc
         os.mkdir('../models')
 
     best_loss = 1000
+    train_loss, train_acc, eval_loss, eval_acc = [], [], [], []
+    
     for epoch in range(num_epochs):
 
         print('Epoch {}/{}'.format(epoch + 1, num_epochs))
-        print('-' * 10)
-        train_loss, train_acc, eval_loss, eval_acc = [], [], [], []            
+        print('-' * 10)            
 
         for phase in ['train', 'val']:            
             if phase == 'train':
