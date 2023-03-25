@@ -84,7 +84,7 @@ def build_model() -> BasicCNN:
 model = build_model()
 batch_size, num_epochs, lr = 32, 50, 1e-3
 
-optimizer = optim.Adam(model.parameters(), lr=lr)
+optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9)
 criterion = nn.CrossEntropyLoss()
 
 def run_strategy(strategy_name: str) -> None:
