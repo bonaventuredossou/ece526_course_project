@@ -82,7 +82,7 @@ def build_model() -> BasicCNN:
     return model
 
 model = build_model()
-batch_size, num_epochs, lr = 32, 50, 1e-3
+batch_size, num_epochs, lr = 32, 100, 1e-4
 
 optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9)
 criterion = nn.CrossEntropyLoss()
