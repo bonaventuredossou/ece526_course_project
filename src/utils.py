@@ -108,7 +108,7 @@ class BasicCNN(nn.Module):
         out = self.classifier(x)
         return out
 
-def preprocessing(data_dir: str, batch_size: int, strategy_name: str) -> Dict[DataLoader, DataLoader, DataLoader, Any]:
+def preprocessing(data_dir: str, batch_size: int, strategy_name: str) -> Dict:
     # Data augmentation and normalization for training & Just normalization for validation
     input_size = (224, 224)
     data_transforms = {
@@ -161,7 +161,7 @@ def preprocessing(data_dir: str, batch_size: int, strategy_name: str) -> Dict[Da
     return dataloaders_dict
 
 # adapted from Pytorch Tutorial on Pretrained CV models
-def train_model(model: BasicCNN, dataloaders: Dict[DataLoader, DataLoader, DataLoader, Any],
+def train_model(model: BasicCNN, dataloaders: Dict,
                 batch_size: int, criterion: torch.nn.CrossEntropyLoss,
                 optimizer: torch.optim.Optimizer, num_epochs: int, lr: float,
                 device: torch.device, strategy: str) -> Tuple[List, List, List, List]:
@@ -232,7 +232,7 @@ def train_model(model: BasicCNN, dataloaders: Dict[DataLoader, DataLoader, DataL
     
     return train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc
 
-def test_model(model: BasicCNN, dataloaders: Dict[DataLoader, DataLoader, DataLoader, Any],
+def test_model(model: BasicCNN, dataloaders: Dict,
                criterion: torch.nn.CrossEntropyLoss, 
                device: torch.device) -> Tuple[float, float]:
     loss = 0.0
