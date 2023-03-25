@@ -78,6 +78,13 @@ def build_model() -> BasicCNN:
     model = model.to(device)
     return model
 
+# used to perform MC-Dropout
+def set_dropout(trained_model):
+    trained_model.eval()
+    for name, module in trained_model.named_modules():
+        if 'dropout' in name:
+            module.train()
+
 def run_strategy(strategy_name: str) -> None:
 
     data_dir = '../data'
@@ -90,7 +97,7 @@ def run_strategy(strategy_name: str) -> None:
 
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=lr)
     criterion = nn.CrossEntropyLoss()
-    
+
     if not os.path.exists('../results'):
         os.mkdir('../results')
 
@@ -105,7 +112,7 @@ def run_strategy(strategy_name: str) -> None:
         results_frame.to_csv('../results/{}_training_results_{}_{}.csv'.format(strategy_name, test_loss, test_acc), index=False)
 
     else:
-        # to Implement for Uncertainty sampling
+        # to Implement for Sampling with uncertainty
         NotImplementedError
 
 if __name__ == '__main__':
