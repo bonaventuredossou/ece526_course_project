@@ -189,7 +189,7 @@ def run_strategy(strategy_name: str) -> None:
                                                                                           batch_size, criterion,
                                                                                           optimizer,
                                                                                           num_epochs, lr, device,
-                                                                                          strategy_name)
+                                                                                          strategy_name, query_size)
     results_frame = pd.DataFrame()
     results_frame['train_loss'] = train_loss
     results_frame['train_acc'] = train_acc
