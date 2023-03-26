@@ -125,7 +125,7 @@ def query_pool(model: BasicCNN, dataloaders: Dict, strategy: str,
 def run_strategy(strategy_name: str) -> None:
 
     data_dir = '../data'
-    batch_size, num_epochs, lr = 8, 100, 1e-4
+    batch_size, num_epochs, lr = 8, 10, 1e-4
     dataloader_dict = preprocessing(data_dir, batch_size, strategy_name)
     model = build_model()
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=lr)
@@ -146,7 +146,7 @@ def run_strategy(strategy_name: str) -> None:
         print('...Beginning AL training...')        
         for active_learning_round in range(5):
             dataloader_dict = query_pool(model_, dataloader_dict,
-                                         strategy_name, batch_size, query_size=20)
+                                         strategy_name, batch_size, query_size=25)
             train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model, dataloader_dict, batch_size, criterion, optimizer, num_epochs, lr, device, strategy_name)
             results_frame = pd.DataFrame()
             results_frame['train_loss'] = train_loss        
@@ -157,15 +157,17 @@ def run_strategy(strategy_name: str) -> None:
                 '../results/{}_training_results_{}_{}_al_round_{}.csv'.format(strategy_name,
                 test_loss, test_acc, active_learning_round + 1), index=False)
 
-        # delete the model to free memory
-        del model_
-        torch.cuda.empty_cache()
+            # delete the model to free memory
+            del model_
+            torch.cuda.empty_cache()
+            # build the model from scratch for new training round
+            model = build_model()
     else:
         del model_
         torch.cuda.empty_cache()
 
 if __name__ == '__main__':
-    run_strategy('normal')
+    # run_strategy('normal')
     run_strategy('max_entropy')
-    run_strategy('mean_std')
-    run_strategy('bald')
+    # run_strategy('mean_std')
+    # run_strategy('bald')
