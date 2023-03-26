@@ -10,25 +10,18 @@ import torch.nn.functional as F
 from torchvision import datasets, transforms
 import os
 from tqdm import tqdm
+from PIL import Image
 
-def sample_subset(augmentation_set: Dataset) -> Tuple[DataLoader, list]:
-    """
-    This function samples a mini-batch from the augmenting set (referred to as pool in the original paper)
-    augmentation_set: Pytorch Dataset object
-    returns a dataloader ready to be ran on the model for uncertainty quantification, and indices of
-    selected samples
-    """
-    selected_indices = random.sample(range(0, len(augmentation_set)), k=500) # selects randomly 500 indices
-    current_subset = Subset(augmentation_set, selected_indices)
-    return DataLoader(current_subset, shuffle=False, batch_size=len(current_subset)), selected_indices
-
-def run_uncertainty(model, dataset: DataLoader, uncertainty_rounds: int=20) -> array:
+def run_uncertainty(model, dataset: DataLoader, device: torch.device, uncertainty_rounds: int=20) -> array:
     # runs uncertainty on the sample 
-    with torch.no_grad:
-        image, labels = dataset
-        predictions = np.stack([torch.softmax(model(image), dim=-1).cpu().numpy()
-                                for _ in tqdm(range(uncertainty_rounds),
-                                              desc ="Running Uncertainty")])
+    with torch.no_grad():
+        for inputs, labels in dataset:
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+            
+            predictions = np.stack([torch.softmax(model(inputs), dim=-1).cpu().numpy()
+                for _ in tqdm(range(uncertainty_rounds), desc ="Running Uncertainty")])
+        
         return predictions, labels
 
 def compute_entropy(models_predictions: array) -> Tuple[array, array]:
@@ -68,7 +61,6 @@ def compute_bald(entropies: array, average_entropies: array, top_k: int = 10) ->
     top_indices = (-mutual_information).argsort()[:top_k]
     return mutual_information, top_indices
 
-# conv_kernel, kernel_size, pooling, dense layer, dropout
 class BasicCNN(nn.Module):
     def __init__(self, channels=3, n_filters=32, kernel_size=4, pooling_size=2,
                  num_classes=2, dense_size=128, image_size=224):
@@ -106,6 +98,20 @@ class BasicCNN(nn.Module):
         out = self.classifier(x)
         return out
 
+class CustomDataset(torch.utils.data.Dataset):
+    def __init__(self, data, transform):
+        self.imgs = data
+        self.transform = transform
+        
+    def __len__(self):
+        return len(self.imgs)
+        
+    def __getitem__(self, i):
+        image_path, label = self.imgs[i]
+        image = Image.open(image_path)
+        image = self.transform(image)
+        return image, int(label)
+
 def preprocessing(data_dir: str, batch_size: int, strategy_name: str) -> Dict:
     # Data augmentation and normalization for training & Just normalization for validation
     input_size = (224, 224)
@@ -140,36 +146,41 @@ def preprocessing(data_dir: str, batch_size: int, strategy_name: str) -> Dict:
     dataloaders_dict['test'] = torch.utils.data.DataLoader(image_datasets['test'], batch_size=batch_size, shuffle=False, num_workers=4)
 
     if strategy_name != 'normal':
-        validation_split = 0.5 # we spliting the valiadation into validation and pool
+        validation_split = 0.5
         val_dataset_size = len(image_datasets['val'])
         indices = list(range(val_dataset_size))
-        split = int(np.floor(validation_split * validation_split))
+        
+        random.shuffle(indices)
+        
+        split = int(np.floor(validation_split * val_dataset_size))
         val_indices, pool_indices = indices[split:], indices[:split]
+        
+        initial_val_images = np.array(image_datasets['val'].imgs)
+        val_images, pool_images = initial_val_images[val_indices], initial_val_images[pool_indices]
 
-        val_sampler = SubsetRandomSampler(val_indices)
-        pool_sampler = SubsetRandomSampler(pool_indices)
-
-        dataloaders_dict['val'] = DataLoader(image_datasets['val'], batch_size=batch_size,
-                                                              shuffle=False, num_workers=4, sampler=val_sampler)
-        dataloaders_dict['pool'] = DataLoader(image_datasets['val'], batch_size=batch_size,
-                                                               shuffle=False, num_workers=4, sampler=pool_sampler)
+        dataloaders_dict['val'] = DataLoader(dataset=CustomDataset(val_images.tolist(), data_transforms['val']), batch_size=batch_size,
+                                                              shuffle=False, num_workers=4)
+        dataloaders_dict['pool'] = DataLoader(dataset=CustomDataset(pool_images.tolist(), data_transforms['val']), batch_size=len(pool_images),
+                                                               shuffle=False, num_workers=4) # taking all in one
     else:
         dataloaders_dict['val'] = DataLoader(image_datasets['val'], batch_size=batch_size, shuffle=False, num_workers=4)
 
+    print('Train: {}, Dev: {}, Test: {}'.format(len(dataloaders_dict['train'].dataset.imgs),
+                                                            len(dataloaders_dict['val'].dataset.imgs), len(dataloaders_dict['test'].dataset.imgs)))
     return dataloaders_dict
 
 # adapted from Pytorch Tutorial on Pretrained CV models
 def train_model(model: BasicCNN, dataloaders: Dict,
                 batch_size: int, criterion: torch.nn.CrossEntropyLoss,
                 optimizer: torch.optim.Optimizer, num_epochs: int, lr: float,
-                device: torch.device, strategy: str) -> Tuple[List, List, List, List]:
+                device: torch.device, strategy: str, query_size: int) -> Tuple[List, List, List, List, float, float, BasicCNN]:
     
     if not os.path.exists('../models'):
         os.mkdir('../models')
 
     best_loss = 1000
     train_loss, train_acc, eval_loss, eval_acc = [], [], [], []
-    path = os.path.join('../models/isic_basic_cnn_{}_{}_{}_{}.pt'.format(batch_size, num_epochs, lr, strategy))
+    path = os.path.join('../models/isic_basic_cnn_{}_{}_{}_{}_{}.pt'.format(batch_size, num_epochs, lr, strategy, query_size))
     
     for epoch in range(num_epochs):
 
@@ -188,6 +199,7 @@ def train_model(model: BasicCNN, dataloaders: Dict,
             for inputs, labels in dataloaders[phase]:
                 inputs = inputs.to(device)
                 labels = labels.to(device)
+                
                 optimizer.zero_grad()
                 
                 with torch.set_grad_enabled(phase == 'train'):
