@@ -85,6 +85,43 @@ def set_dropout(trained_model):
         if 'dropout' in name:
             module.train()
 
+def query_pool(model: BasicCNN, dataloaders: Dict, strategy: str,
+               batch_size: int, query_size: int) -> Dict:
+    # set the model's dropout unit in training mode
+    set_dropout(model)
+    # run the model on the pool
+    predictions, labels = run_uncertainty(model, dataloaders['pool'])
+    entropy, expectation_entropy = compute_entropy(predictions)
+    if strategy == 'max_entropy':
+        top_indices = compute_max_entropy(entropy)
+    if strategy == 'mean_std':
+        mean_std, top_indices = compute_mean_std(predictions)
+    if strategy == 'bald':
+        mutual_information, top_indices = compute_bald(entropy, expectation_entropy)
+    
+    top_indices = top_indices.tolist()
+    
+    print('Initial size: Train = {}, Pool = {}'.format(dataloaders['train'], dataloaders['pool']))
+    training_dataset = dataloaders['train'].dataset
+    pool_dataset = dataloaders['pool'].dataset
+
+    # add indices to the training set
+    for index in top_indices:
+        training_dataset.imgs.append(pool_dataset.imgs[index])
+
+    # removes indices from the pool set    
+    for index in top_indices:
+        del pool_dataset.imgs[index]
+
+    # reaasigns the updated data loaders
+    dataloaders['train'] = DataLoader(training_dataset, batch_size=batch_size, shuffle=True)
+    dataloaders['pool'] = DataLoader(pool_dataset, batch_size=batch_size, shuffle=False)
+
+    print('Size after Update: Train = {}, Pool = {}'.format(dataloaders['train'],
+                                                            dataloaders['pool']))
+
+    return dataloaders
+
 def run_strategy(strategy_name: str) -> None:
 
     data_dir = '../data'
@@ -96,20 +133,39 @@ def run_strategy(strategy_name: str) -> None:
 
     if not os.path.exists('../results'):
         os.mkdir('../results')
+    
+    train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model, dataloader_dict, batch_size, criterion, optimizer, num_epochs, lr, device, strategy_name)
+    results_frame = pd.DataFrame()
+    results_frame['train_loss'] = train_loss        
+    results_frame['train_acc'] = train_acc        
+    results_frame['eval_loss'] = eval_loss        
+    results_frame['eval_acc'] = eval_acc
+    results_frame.to_csv('../results/{}_training_results_{}_{}.csv'.format(strategy_name, test_loss, test_acc), index=False)
+    
+    if strategy_name != 'normal':
+        print('...Beginning AL training...')        
+        for active_learning_round in range(5):
+            dataloader_dict = query_pool(model_, dataloader_dict,
+                                         strategy_name, batch_size, query_size=20)
+            train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model, dataloader_dict, batch_size, criterion, optimizer, num_epochs, lr, device, strategy_name)
+            results_frame = pd.DataFrame()
+            results_frame['train_loss'] = train_loss        
+            results_frame['train_acc'] = train_acc        
+            results_frame['eval_loss'] = eval_loss        
+            results_frame['eval_acc'] = eval_acc
+            results_frame.to_csv(
+                '../results/{}_training_results_{}_{}_al_round_{}.csv'.format(strategy_name,
+                test_loss, test_acc, active_learning_round + 1), index=False)
 
-    if strategy_name == 'normal':
-        # meaning no uncertainty
-        train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc = train_model(model, dataloader_dict, batch_size, criterion, optimizer, num_epochs, lr, device, strategy_name)
-        results_frame = pd.DataFrame()
-        results_frame['train_loss'] = train_loss        
-        results_frame['train_acc'] = train_acc        
-        results_frame['eval_loss'] = eval_loss        
-        results_frame['eval_acc'] = eval_acc
-        results_frame.to_csv('../results/{}_training_results_{}_{}.csv'.format(strategy_name, test_loss, test_acc), index=False)
-
+        # delete the model to free memory
+        del model_
+        torch.cuda.empty_cache()
     else:
-        # to Implement for Sampling with uncertainty
-        NotImplementedError
+        del model_
+        torch.cuda.empty_cache()
 
 if __name__ == '__main__':
     run_strategy('normal')
+    run_strategy('max_entropy')
+    run_strategy('mean_std')
+    run_strategy('bald')

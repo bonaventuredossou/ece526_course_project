@@ -7,9 +7,9 @@ from numpy import array
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchvision
 from torchvision import datasets, transforms
 import os
+from tqdm import tqdm
 
 def sample_subset(augmentation_set: Dataset) -> Tuple[DataLoader, list]:
     """
@@ -27,10 +27,11 @@ def run_uncertainty(model, dataset: DataLoader, uncertainty_rounds: int=20) -> a
     with torch.no_grad:
         image, labels = dataset
         predictions = np.stack([torch.softmax(model(image), dim=-1).cpu().numpy()
-                                for _ in range(uncertainty_rounds)])
-        return predictions
+                                for _ in tqdm(range(uncertainty_rounds),
+                                              desc ="Running Uncertainty")])
+        return predictions, labels
 
-def compute_entropy(model_predictions: array, is_bald: bool) -> Tuple[array, float]:
+def compute_entropy(models_predictions: array) -> Tuple[array, array]:
     """
     Computes the entropy of the predictions (as measure of uncertainty)
     If `is_bald` we compute both the entropy and the average entropy
@@ -38,20 +39,17 @@ def compute_entropy(model_predictions: array, is_bald: bool) -> Tuple[array, flo
     # average predictions
     models_predictions = models_predictions.mean(axis=0)
     entropy = np.sum(-models_predictions*np.log(models_predictions), -1)
-    average_entropy = np.mean(entropy, 0)
-    if is_bald:
-        return entropy, average_entropy
-    else:
-        return entropy
+    expectation_entropy = np.mean(entropy, 0)
+    return entropy, expectation_entropy
 
-def compute_max_entropy(entropies: array, top_k: int = 100) -> array:
+def compute_max_entropy(entropies: array, top_k: int = 10) -> array:
     """
     Returns the datapoints of the current subset that maximizes the entropy
     """
     top_indices = (-entropies).argsort()[:top_k]
     return top_indices
 
-def compute_mean_std(model_prediction: array, top_k: int = 100) -> Tuple[array, array]:
+def compute_mean_std(model_prediction: array, top_k: int = 10) -> Tuple[array, array]:
     """
     Computes the mean std, and select top_k data point that maximize it
     """
@@ -60,7 +58,7 @@ def compute_mean_std(model_prediction: array, top_k: int = 100) -> Tuple[array, 
     top_indices = (-mean_std).argsort()[:top_k]
     return mean_std, top_indices
 
-def compute_bald(entropies: array, average_entropies: array, top_k: int = 100) -> Tuple[array, array]:
+def compute_bald(entropies: array, average_entropies: array, top_k: int = 10) -> Tuple[array, array]:
     """
     BALD maximizes the mutual information between the model's prediction and its posterior
     I[y,w|x,d_train] = H[y|x,d_train]-E_{p(w|d_train)}[H[y|x,w]]
@@ -73,7 +71,7 @@ def compute_bald(entropies: array, average_entropies: array, top_k: int = 100) -
 # conv_kernel, kernel_size, pooling, dense layer, dropout
 class BasicCNN(nn.Module):
     def __init__(self, channels=3, n_filters=32, kernel_size=4, pooling_size=2,
-                 dropout=0.3, num_classes=2, dense_size=128, image_size=224):
+                 num_classes=2, dense_size=128, image_size=224):
         super(BasicCNN, self).__init__()
         """
         n_filters: number of filters
@@ -230,7 +228,7 @@ def train_model(model: BasicCNN, dataloaders: Dict,
     print('Test loss: {:4f}'.format(test_loss))
     print('Test Accuracy: {:4f}'.format(test_acc))
     
-    return train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc
+    return train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model
 
 def test_model(model: BasicCNN, dataloaders: Dict,
                criterion: torch.nn.CrossEntropyLoss, 
