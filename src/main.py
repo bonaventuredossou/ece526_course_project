@@ -18,7 +18,7 @@ def create_train_val_splits(path: str) -> None:
     dataset = pd.read_csv(path)
     label_map = {'benign': 0, 'malignant': 1}
     dataset['labels'] = dataset['labels'].apply(lambda x: label_map[x])
-    train, val = train_test_split(dataset, stratify=dataset['labels'], train_size=0.66, random_state=1234)
+    train, val = train_test_split(dataset, stratify=dataset['labels'], train_size=0.78, random_state=1234) # attempt to get 700/200 for train and val
 
     train.to_csv('../train_split.csv', index=False)
     val.to_csv('../val_split.csv', index=False)
@@ -175,11 +175,17 @@ def run_strategy(strategy_name: str) -> None:
     print('Running with strategy == {}'.format(strategy_name))
 
     data_dir = '../data'
-    batch_size, num_epochs, lr = 8, 200, 1e-4
+    batch_size, num_epochs, lr = 8, 100, 1e-4
 
     dataloader_dict = preprocessing(data_dir, batch_size, strategy_name)
     model = build_model()
-    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=lr)
+
+    training_data_points = len(dataloader_dict['train'])
+
+    # from the paper: weight_decay =  (1 - p)lsquared/N where N = |training_set|, p = 0.5, and l_squared = 0.5
+    p, l_squared = 0.5, 0.5
+    weight_decay = ((1-p)*l_squared)/training_data_points
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.CrossEntropyLoss()
 
     if not os.path.exists('../results'):
@@ -199,7 +205,9 @@ def run_strategy(strategy_name: str) -> None:
                          index=False)
 
     if strategy_name != 'normal':
-        query_size_options = [10, 15, 20, 25]
+        # An acquisition function is then used to select the `100` most informative images from the pool set.
+        
+        query_size_options = [115, 100, 85, 70, 50]
         for query_size in query_size_options:
             print('...Beginning AL training... with strategy == {} and query_size == {}'.format(strategy_name,
                                                                                                 query_size))
@@ -238,7 +246,7 @@ def run_strategy(strategy_name: str) -> None:
 
 
 if __name__ == '__main__':
-    run_strategy('normal')
+    # run_strategy('normal')
     run_strategy('max_entropy')
-    run_strategy('mean_std')
-    run_strategy('bald')
+    # run_strategy('mean_std')
+    # run_strategy('bald')

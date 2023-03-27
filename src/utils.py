@@ -142,28 +142,30 @@ def preprocessing(data_dir: str, batch_size: int, strategy_name: str) -> Dict:
                       for x in ['train', 'val', 'test']}
 
     dataloaders_dict = {}     
-    dataloaders_dict['train'] = torch.utils.data.DataLoader(image_datasets['train'], batch_size=batch_size, shuffle=True, num_workers=4)
+    dataloaders_dict['val'] = torch.utils.data.DataLoader(image_datasets['val'], batch_size=batch_size, shuffle=False, num_workers=4)
     dataloaders_dict['test'] = torch.utils.data.DataLoader(image_datasets['test'], batch_size=batch_size, shuffle=False, num_workers=4)
 
     if strategy_name != 'normal':
-        validation_split = 0.5
-        val_dataset_size = len(image_datasets['val'])
-        indices = list(range(val_dataset_size))
-        
-        random.shuffle(indices)
-        
-        split = int(np.floor(validation_split * val_dataset_size))
-        val_indices, pool_indices = indices[split:], indices[:split]
-        
-        initial_val_images = np.array(image_datasets['val'].imgs)
-        val_images, pool_images = initial_val_images[val_indices], initial_val_images[pool_indices]
+        # We begin by creating an initial training
+        # set of 80 negative examples and 20 positive examples from our training data, as well as a pool set from the remaining data. 
+        training_images = image_datasets['train'].dataset.imgs
+        negative_images = [sample for sample in training_images if int(sample[1]) == 0] # samples that are non-cancerous
+        positive_images = [sample for sample in training_images if int(sample[1]) == 1] # samples that are cancerous
 
-        dataloaders_dict['val'] = DataLoader(dataset=CustomDataset(val_images.tolist(), data_transforms['val']), batch_size=batch_size,
-                                                              shuffle=False, num_workers=4)
-        dataloaders_dict['pool'] = DataLoader(dataset=CustomDataset(pool_images.tolist(), data_transforms['val']), batch_size=len(pool_images),
+        initial_training_negatives, pool_negatives = negative_images[:80], negative_images[80:]
+        initial_training_positives, pool_positives = positive_images[:20], positive_images[20:]
+
+        initial_training_samples = initial_training_negatives + initial_training_positives
+        pool_samples = pool_negatives + pool_positives
+
+        random.shuffle(pool_samples)
+
+        dataloaders_dict['train'] = DataLoader(dataset=CustomDataset(initial_training_samples, data_transforms['train']), batch_size=batch_size,
+                                                              shuffle=True, num_workers=4)
+        dataloaders_dict['pool'] = DataLoader(dataset=CustomDataset(pool_samples, data_transforms['val']), batch_size=len(pool_samples),
                                                                shuffle=False, num_workers=4) # taking all in one
     else:
-        dataloaders_dict['val'] = DataLoader(image_datasets['val'], batch_size=batch_size, shuffle=False, num_workers=4)
+        dataloaders_dict['train'] = DataLoader(image_datasets['train'], batch_size=batch_size, shuffle=False, num_workers=4)
 
     print('Train: {}, Dev: {}, Test: {}'.format(len(dataloaders_dict['train'].dataset.imgs),
                                                             len(dataloaders_dict['val'].dataset.imgs), len(dataloaders_dict['test'].dataset.imgs)))
