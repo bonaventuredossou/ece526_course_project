@@ -246,7 +246,7 @@ def run_strategy(strategy_name: str) -> None:
 
 
 if __name__ == '__main__':
-    # run_strategy('normal')
+    run_strategy('normal')
     run_strategy('max_entropy')
-    # run_strategy('mean_std')
-    # run_strategy('bald')
+    run_strategy('mean_std')
+    run_strategy('bald')
