@@ -191,34 +191,13 @@ def run_strategy(strategy_name: str) -> None:
     if not os.path.exists('../results'):
         os.mkdir('../results')
 
-    train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model, dataloader_dict,
-                                                                                          batch_size, criterion,
-                                                                                          optimizer,
-                                                                                          num_epochs, lr, device,
-                                                                                          strategy_name, 0)
-    results_frame = pd.DataFrame()
-    results_frame['train_loss'] = train_loss
-    results_frame['train_acc'] = train_acc
-    results_frame['eval_loss'] = eval_loss
-    results_frame['eval_acc'] = eval_acc
-    results_frame.to_csv('../results/{}_training_results_{}_{}.csv'.format(strategy_name, test_loss, test_acc),
-                         index=False)
-
     if strategy_name != 'normal':
         # An acquisition function is then used to select the `100` most informative images from the pool set.
-        
         query_size_options = [115, 100, 85, 70, 50]
         for query_size in query_size_options:
             print('...Beginning AL training... with strategy == {} and query_size == {}'.format(strategy_name,
                                                                                                 query_size))
             for active_learning_round in range(5):
-                dataloader_dict = query_pool(model_, device, dataloader_dict,
-                                             strategy_name, batch_size, query_size=query_size)
-                # delete the model to free memory
-                del model_
-                torch.cuda.empty_cache()
-                # build the model from scratch for new training round
-                model = build_model()
 
                 train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model,
                                                                                                       dataloader_dict,
@@ -228,6 +207,7 @@ def run_strategy(strategy_name: str) -> None:
                                                                                                       num_epochs,
                                                                                                       lr, device,
                                                                                                       strategy_name, query_size)
+
                 results_frame = pd.DataFrame()
                 results_frame['train_loss'] = train_loss
                 results_frame['train_acc'] = train_acc
@@ -240,8 +220,40 @@ def run_strategy(strategy_name: str) -> None:
                                                                                      query_size),
                     index=False)
 
+                dataloader_dict = query_pool(model_, device, dataloader_dict,
+                                             strategy_name, batch_size, query_size=query_size)
+
+                # delete the model to free memory
+                del model_
+                del model
+                torch.cuda.empty_cache()
+                # build the model from scratch for new training round
+                model = build_model()
+                train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model,
+                                                                                                      dataloader_dict,
+                                                                                                      batch_size,
+                                                                                                      criterion,
+                                                                                                      optimizer,
+                                                                                                      num_epochs,
+                                                                                                      lr, device,
+                                                                                                      strategy_name, query_size)
     else:
+
+        train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model, dataloader_dict,
+                                                                                          batch_size, criterion,
+                                                                                          optimizer,
+                                                                                          num_epochs, lr, device,
+                                                                                          strategy_name, 0)
+        results_frame = pd.DataFrame()
+        results_frame['train_loss'] = train_loss
+        results_frame['train_acc'] = train_acc
+        results_frame['eval_loss'] = eval_loss
+        results_frame['eval_acc'] = eval_acc
+        results_frame.to_csv('../results/{}_training_results_{}_{}.csv'.format(strategy_name, test_loss, test_acc),
+                            index=False)
+
         del model_
+        del model
         torch.cuda.empty_cache()
 
 
