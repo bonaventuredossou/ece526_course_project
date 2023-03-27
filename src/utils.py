@@ -148,7 +148,7 @@ def preprocessing(data_dir: str, batch_size: int, strategy_name: str) -> Dict:
     if strategy_name != 'normal':
         # We begin by creating an initial training
         # set of 80 negative examples and 20 positive examples from our training data, as well as a pool set from the remaining data. 
-        training_images = image_datasets['train'].dataset.imgs
+        training_images = image_datasets['train'].imgs
         negative_images = [sample for sample in training_images if int(sample[1]) == 0] # samples that are non-cancerous
         positive_images = [sample for sample in training_images if int(sample[1]) == 1] # samples that are cancerous
 
