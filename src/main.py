@@ -171,7 +171,7 @@ def query_pool(model: BasicCNN, device: torch.device, dataloaders: Dict, strateg
     return new_dataloaders
 
 
-def run_strategy(strategy_name: str) -> None:
+def run_strategy(strategy_name: str, query_size: int) -> None:
     print('Running with strategy == {}'.format(strategy_name))
 
     data_dir = '../data'
@@ -193,57 +193,54 @@ def run_strategy(strategy_name: str) -> None:
 
     if strategy_name != 'normal':
         # An acquisition function is then used to select the `100` most informative images from the pool set.
-        query_size_options = [115, 100, 85, 70, 50]
-        for query_size in query_size_options:
-            print('...Beginning AL training... with strategy == {} and query_size == {}'.format(strategy_name,
+        print('...Training AL with strategy == {} and query_size == {}'.format(strategy_name,
                                                                                                 query_size))
-            for active_learning_round in range(5):
+        for active_learning_round in range(5):
+            train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model,
+                                                                                                  dataloader_dict,
+                                                                                                  batch_size,
+                                                                                                  criterion,
+                                                                                                  optimizer,
+                                                                                                  num_epochs,
+                                                                                                  lr, device,
+                                                                                                  strategy_name,
+                                                                                                  query_size)
 
-                train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model,
-                                                                                                      dataloader_dict,
-                                                                                                      batch_size,
-                                                                                                      criterion,
-                                                                                                      optimizer,
-                                                                                                      num_epochs,
-                                                                                                      lr, device,
-                                                                                                      strategy_name, query_size)
-
-                results_frame = pd.DataFrame()
-                results_frame['train_loss'] = train_loss
-                results_frame['train_acc'] = train_acc
-                results_frame['eval_loss'] = eval_loss
-                results_frame['eval_acc'] = eval_acc
-                results_frame.to_csv(
-                    '../results/{}_training_results_{}_{}_al_round_{}_{}.csv'.format(strategy_name,
+            results_frame = pd.DataFrame()
+            results_frame['train_loss'] = train_loss
+            results_frame['train_acc'] = train_acc
+            results_frame['eval_loss'] = eval_loss
+            results_frame['eval_acc'] = eval_acc
+            results_frame.to_csv('../results/{}_training_results_{}_{}_al_round_{}_{}.csv'.format(strategy_name,
                                                                                      test_loss, test_acc,
                                                                                      active_learning_round + 1,
-                                                                                     query_size),
-                    index=False)
+                                                                                     query_size), index=False)
 
-                dataloader_dict = query_pool(model_, device, dataloader_dict,
+            dataloader_dict = query_pool(model_, device, dataloader_dict,
                                              strategy_name, batch_size, query_size=query_size)
 
-                # delete the model to free memory
-                del model_
-                del model
-                torch.cuda.empty_cache()
-                # build the model from scratch for new training round
-                model = build_model()
-                train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model,
-                                                                                                      dataloader_dict,
-                                                                                                      batch_size,
-                                                                                                      criterion,
-                                                                                                      optimizer,
-                                                                                                      num_epochs,
-                                                                                                      lr, device,
-                                                                                                      strategy_name, query_size)
+            # delete the model to free memory
+            del model_
+            del model
+            torch.cuda.empty_cache()
+            # build the model from scratch for new training round
+            model = build_model()
+            train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model,
+                                                                                                  dataloader_dict,
+                                                                                                  batch_size,
+                                                                                                  criterion,
+                                                                                                  optimizer,
+                                                                                                  num_epochs,
+                                                                                                  lr, device,
+                                                                                                  strategy_name,
+                                                                                                  query_size)
     else:
 
         train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model, dataloader_dict,
                                                                                           batch_size, criterion,
                                                                                           optimizer,
                                                                                           num_epochs, lr, device,
-                                                                                          strategy_name, 0)
+                                                                                          strategy_name, query_size)
         results_frame = pd.DataFrame()
         results_frame['train_loss'] = train_loss
         results_frame['train_acc'] = train_acc
@@ -258,7 +255,10 @@ def run_strategy(strategy_name: str) -> None:
 
 
 if __name__ == '__main__':
-    run_strategy('normal')
-    run_strategy('max_entropy')
-    run_strategy('mean_std')
-    run_strategy('bald')
+    run_strategy('normal', 0)
+    query_size_options = [115, 100, 85, 70, 50]
+    # run with different query size to leverage impact of batch acquisition effect
+    for query_size in query_size_options:
+        run_strategy('max_entropy', query_size)
+        run_strategy('mean_std', query_size)
+        run_strategy('bald', query_size)
