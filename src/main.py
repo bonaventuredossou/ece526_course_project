@@ -256,7 +256,7 @@ def run_strategy(strategy_name: str, query_size: int) -> None:
 
 if __name__ == '__main__':
     run_strategy('normal', 0)
-    query_size_options = [115, 100, 85, 70, 50]
+    query_size_options = [100, 70, 50]
     # run with different query size to leverage impact of batch acquisition effect
     for query_size in query_size_options:
         run_strategy('max_entropy', query_size)
