@@ -191,11 +191,18 @@ def run_strategy(strategy_name: str, query_size: int) -> None:
     if not os.path.exists('../results'):
         os.mkdir('../results')
 
+    if not os.path.exists('../results/{}'.format(strategy_name)):
+        os.mkdir('../results/{}'.format(strategy_name))
+    
     if strategy_name != 'normal':
         # An acquisition function is then used to select the `100` most informative images from the pool set.
         print('...Training AL with strategy == {} and query_size == {}'.format(strategy_name,
                                                                                                 query_size))
         for active_learning_round in range(5):
+            
+            if not os.path.exists('../results/{}/Round_{}'.format(strategy_name, active_learning_round + 1)):
+                os.mkdir('../results/{}/Round_{}'.format(strategy_name, active_learning_round + 1))
+
             train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model,
                                                                                                   dataloader_dict,
                                                                                                   batch_size,
@@ -211,9 +218,9 @@ def run_strategy(strategy_name: str, query_size: int) -> None:
             results_frame['train_acc'] = train_acc
             results_frame['eval_loss'] = eval_loss
             results_frame['eval_acc'] = eval_acc
-            results_frame.to_csv('../results/{}_training_results_{}_{}_al_round_{}_{}.csv'.format(strategy_name,
+            results_frame.to_csv('../results/{}/Round_{}/training_results_{}_{}_query_{}.csv'.format(strategy_name,
+                                                                                    active_learning_round + 1,
                                                                                      test_loss, test_acc,
-                                                                                     active_learning_round + 1,
                                                                                      query_size), index=False)
 
             dataloader_dict = query_pool(model_, device, dataloader_dict,
@@ -246,7 +253,7 @@ def run_strategy(strategy_name: str, query_size: int) -> None:
         results_frame['train_acc'] = train_acc
         results_frame['eval_loss'] = eval_loss
         results_frame['eval_acc'] = eval_acc
-        results_frame.to_csv('../results/{}_training_results_{}_{}.csv'.format(strategy_name, test_loss, test_acc),
+        results_frame.to_csv('../results/{}/training_results_{}_{}.csv'.format(strategy_name, test_loss, test_acc),
                             index=False)
 
         del model_
