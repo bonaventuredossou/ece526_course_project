@@ -3,8 +3,8 @@
 #SBATCH --gres=gpu:a100l:2
 #SBATCH --cpus-per-gpu=6
 #SBATCH --mem=48G
-#SBATCH --time=48:00:00         
-#SBATCH --partition=main
+#SBATCH --time=96:00:00         
+#SBATCH --partition=long
 #SBATCH --error=/home/mila/b/bonaventure.dossou/ece526_course_project/slurmerror.txt
 #SBATCH --output=/home/mila/b/bonaventure.dossou/ece526_course_project/slurmoutput.txt
 
