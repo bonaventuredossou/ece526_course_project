@@ -117,18 +117,18 @@ data_transforms = {
 
 
 def query_pool(model: BasicCNN, device: torch.device, dataloaders: Dict, strategy: str,
-               batch_size: int, query_size: int) -> Dict:
+               batch_size: int, query_size: int, reverse: bool = False) -> Dict:
     # set the model's dropout unit in training mode
     set_dropout(model)
     # run the model on the pool
     predictions, labels = run_uncertainty(model, dataloaders['pool'], device)
     entropy, expectation_entropy = compute_entropy(predictions)
     if strategy == 'max_entropy':
-        top_indices = compute_max_entropy(entropy, query_size)
+        top_indices = compute_max_entropy(entropy, query_size, reverse)
     if strategy == 'mean_std':
-        mean_std, top_indices = compute_mean_std(predictions, query_size)
+        mean_std, top_indices = compute_mean_std(predictions, query_size, reverse)
     if strategy == 'bald':
-        mutual_information, top_indices = compute_bald(entropy, expectation_entropy, query_size)
+        mutual_information, top_indices = compute_bald(entropy, expectation_entropy, query_size, reverse)
 
     top_indices = top_indices.tolist()
     training_images = dataloaders['train'].dataset.imgs
@@ -170,7 +170,7 @@ def query_pool(model: BasicCNN, device: torch.device, dataloaders: Dict, strateg
     return new_dataloaders
 
 
-def run_strategy(strategy_name: str, query_size: int) -> None:
+def run_strategy(strategy_name: str, query_size: int, reverse: bool = False) -> None:
     print('Running with strategy == {}'.format(strategy_name))
 
     data_dir = '../data'
@@ -210,20 +210,20 @@ def run_strategy(strategy_name: str, query_size: int) -> None:
                                                                                                   num_epochs,
                                                                                                   lr, device,
                                                                                                   strategy_name,
-                                                                                                  query_size)
+                                                                                                  query_size, reverse)
 
             results_frame = pd.DataFrame()
             results_frame['train_loss'] = train_loss
             results_frame['train_acc'] = train_acc
             results_frame['eval_loss'] = eval_loss
             results_frame['eval_acc'] = eval_acc
-            results_frame.to_csv('../results/{}/Round_{}/training_results_{}_{}_query_{}.csv'.format(strategy_name,
+            results_frame.to_csv('../results/{}/Round_{}/training_results_{}_{}_query_{}_{}.csv'.format(strategy_name,
                                                                                     active_learning_round + 1,
                                                                                      test_loss, test_acc,
-                                                                                     query_size), index=False)
+                                                                                     query_size, reverse), index=False)
 
             dataloader_dict = query_pool(model_, device, dataloader_dict,
-                                             strategy_name, batch_size, query_size=query_size)
+                                             strategy_name, batch_size, query_size, reverse)
 
             # delete the model to free memory
             del model_
@@ -239,20 +239,20 @@ def run_strategy(strategy_name: str, query_size: int) -> None:
                                                                                                   num_epochs,
                                                                                                   lr, device,
                                                                                                   strategy_name,
-                                                                                                  query_size)
+                                                                                                  query_size, reverse)
     else:
 
         train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model, dataloader_dict,
                                                                                           batch_size, criterion,
                                                                                           optimizer,
                                                                                           num_epochs, lr, device,
-                                                                                          strategy_name, query_size)
+                                                                                          strategy_name, query_size, reverse)
         results_frame = pd.DataFrame()
         results_frame['train_loss'] = train_loss
         results_frame['train_acc'] = train_acc
         results_frame['eval_loss'] = eval_loss
         results_frame['eval_acc'] = eval_acc
-        results_frame.to_csv('../results/{}/training_results_{}_{}.csv'.format(strategy_name, test_loss, test_acc),
+        results_frame.to_csv('../results/{}/training_results_{}_{}_{}.csv'.format(strategy_name, test_loss, test_acc, reverse),
                             index=False)
 
         del model_
@@ -268,3 +268,8 @@ if __name__ == '__main__':
         run_strategy('max_entropy', query_size)
         run_strategy('mean_std', query_size)
         run_strategy('bald', query_size)
+    
+    # running baselines (with parameters stated in the paper) with `reverse` option which will take the least uncertain samples
+    run_strategy('max_entropy', 100)
+    run_strategy('mean_std', 100)
+    run_strategy('bald', 100)

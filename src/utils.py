@@ -35,30 +35,41 @@ def compute_entropy(models_predictions: array) -> Tuple[array, array]:
     expectation_entropy = np.mean(entropy, 0)
     return entropy, expectation_entropy
 
-def compute_max_entropy(entropies: array, top_k: int = 10) -> array:
+def compute_max_entropy(entropies: array, top_k: int = 10, reverse: bool = False) -> array:
     """
     Returns the datapoints of the current subset that maximizes the entropy
+    if reverse then we return the least uncertain samples
     """
-    top_indices = (-entropies).argsort()[:top_k]
+    if reverse:
+        top_indices = (-entropies).argsort()[top_k:]
+    else:
+        top_indices = (-entropies).argsort()[:top_k]
     return top_indices
 
-def compute_mean_std(model_prediction: array, top_k: int = 10) -> Tuple[array, array]:
+def compute_mean_std(model_prediction: array, top_k: int = 10, reverse: bool = False) -> Tuple[array, array]:
     """
     Computes the mean std, and select top_k data point that maximize it
+    if reverse then we return the least uncertain samples
     """
     std = model_prediction.std(-1)
     mean_std = std.mean(0)
-    top_indices = (-mean_std).argsort()[:top_k]
+    if reverse:
+        top_indices = (-mean_std).argsort()[top_k:]
+    else:
+        top_indices = (-mean_std).argsort()[:top_k]
     return mean_std, top_indices
 
-def compute_bald(entropies: array, average_entropies: array, top_k: int = 10) -> Tuple[array, array]:
+def compute_bald(entropies: array, average_entropies: array, top_k: int = 10, reverse: bool = False) -> Tuple[array, array]:
     """
     BALD maximizes the mutual information between the model's prediction and its posterior
     I[y,w|x,d_train] = H[y|x,d_train]-E_{p(w|d_train)}[H[y|x,w]]
     returns the information gain and the top_k data point which maximized it
     """
     mutual_information = entropies - average_entropies
-    top_indices = (-mutual_information).argsort()[:top_k]
+    if reverse:
+        top_indices = (-mutual_information).argsort()[top_k:]
+    else:
+        top_indices = (-mutual_information).argsort()[:top_k]
     return mutual_information, top_indices
 
 class BasicCNN(nn.Module):
@@ -175,14 +186,14 @@ def preprocessing(data_dir: str, batch_size: int, strategy_name: str) -> Dict:
 def train_model(model: BasicCNN, dataloaders: Dict,
                 batch_size: int, criterion: torch.nn.CrossEntropyLoss,
                 optimizer: torch.optim.Optimizer, num_epochs: int, lr: float,
-                device: torch.device, strategy: str, query_size: int) -> Tuple[List, List, List, List, float, float, BasicCNN]:
+                device: torch.device, strategy: str, query_size: int, reverse: bool = False) -> Tuple[List, List, List, List, float, float, BasicCNN]:
     
     if not os.path.exists('../models'):
         os.mkdir('../models')
 
     best_loss = 1000
     train_loss, train_acc, eval_loss, eval_acc = [], [], [], []
-    path = os.path.join('../models/isic_basic_cnn_{}_{}_{}_{}_{}.pt'.format(batch_size, num_epochs, lr, strategy, query_size))
+    path = os.path.join('../models/isic_basic_cnn_{}_{}_{}_{}_{}_{}.pt'.format(batch_size, num_epochs, lr, strategy, query_size, reverse))
     
     for epoch in range(num_epochs):
 
