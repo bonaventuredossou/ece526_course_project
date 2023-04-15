@@ -89,7 +89,6 @@ class BasicCNN(nn.Module):
         self.dropout1 = nn.Dropout(0.25)
         self.dropout2 = nn.Dropout(0.50)
         self.pooling = nn.MaxPool2d(pooling_size)
-        self.conv3 = nn.Conv2d(n_filters, n_filters, kernel_size=kernel_size)
         self.activation = nn.ReLU()
         self.dense = nn.Linear(n_filters * ((image_size - 2 * kernel_size + 2) // 2) * ((image_size - 2 * kernel_size + 2) // 2), dense_size)
         self.classifier = nn.Linear(dense_size, num_classes)

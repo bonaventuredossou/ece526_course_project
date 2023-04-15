@@ -231,15 +231,6 @@ def run_strategy(strategy_name: str, query_size: int, reverse: bool = False) -> 
             torch.cuda.empty_cache()
             # build the model from scratch for new training round
             model = build_model()
-            train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model,
-                                                                                                  dataloader_dict,
-                                                                                                  batch_size,
-                                                                                                  criterion,
-                                                                                                  optimizer,
-                                                                                                  num_epochs,
-                                                                                                  lr, device,
-                                                                                                  strategy_name,
-                                                                                                  query_size, reverse)
     else:
 
         train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model, dataloader_dict,
