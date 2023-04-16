@@ -231,6 +231,13 @@ def run_strategy(strategy_name: str, query_size: int, reverse: bool = False) -> 
             torch.cuda.empty_cache()
             # build the model from scratch for new training round
             model = build_model()
+
+            training_data_points = len(dataloader_dict['train'])
+            p, l_squared = 0.5, 0.5
+            # updated weight decay for the new training set and model for next active learning round
+            weight_decay = ((1-p)*l_squared)/training_data_points
+            optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+
     else:
 
         train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model, dataloader_dict,
