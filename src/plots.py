@@ -74,7 +74,7 @@ losses = {'normal': normal_eval_loss, 'bald': bald_eval_loss, 'max_entropy': max
 accs = {'normal': normal_eval_acc, 'bald': bald_eval_acc, 'max_entropy': max_entropy_eval_acc,
           'mean_std': mean_std_eval_acc}
 
-build_loss_acc_plots(losses, accs, description='normal_vs_final_al_rounds')
+build_loss_acc_plots(losses, accs, 100, description='normal_vs_final_al_rounds')
 
 def build_al_loss_acc_plots(losses: Dict, accs: Dict, description: str, epochs: int = 100) -> None:
     fig, ax = plt.subplots(nrows=len(list(losses.keys())), ncols=2, sharex=True, figsize=(9.5, 9.5))
