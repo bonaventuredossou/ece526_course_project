@@ -11,6 +11,8 @@ from torchvision import datasets, transforms
 import os
 from tqdm import tqdm
 from PIL import Image
+from sklearn.metrics import confusion_matrix
+from plots import build_cm_plot
 
 def run_uncertainty(model, dataset: DataLoader, device: torch.device, uncertainty_rounds: int=20) -> array:
     # runs uncertainty on the sample 
@@ -153,7 +155,9 @@ def preprocessing(data_dir: str, batch_size: int, strategy_name: str) -> Dict:
 
     dataloaders_dict = {}     
     dataloaders_dict['val'] = torch.utils.data.DataLoader(image_datasets['val'], batch_size=batch_size, shuffle=False, num_workers=4)
-    dataloaders_dict['test'] = torch.utils.data.DataLoader(image_datasets['test'], batch_size=batch_size, shuffle=False, num_workers=4)
+    dataloaders_dict['test'] = torch.utils.data.DataLoader(image_datasets['test'], 
+                                                           batch_size=len(image_datasets['test'].imgs),
+                                                           shuffle=False, num_workers=4)
 
     if strategy_name != 'normal':
         # We begin by creating an initial training
@@ -256,7 +260,7 @@ def train_model(model: BasicCNN, dataloaders: Dict,
 
 def test_model(model: BasicCNN, dataloaders: Dict,
                criterion: torch.nn.CrossEntropyLoss, 
-               device: torch.device) -> Tuple[float, float]:
+               device: torch.device, time: str = 'train', description: str = '') -> Tuple[float, float]:
     loss = 0.0
     corrects = 0.0
     for inputs, labels in dataloaders['test']:
@@ -268,7 +272,9 @@ def test_model(model: BasicCNN, dataloaders: Dict,
             _, preds = torch.max(outputs, 1)
         loss += loss.item() * inputs.size(0)
         corrects += torch.sum(preds == labels.data)
+        if time == 'test':
+            conf_matrix = confusion_matrix(labels.cpu().data, preds.cpu())
+            build_cm_plot(conf_matrix, description)
     test_loss = loss / len(dataloaders['test'].dataset)
     test_acc = corrects.double() / len(dataloaders['test'].dataset)
     return test_loss, test_acc.item()
- 

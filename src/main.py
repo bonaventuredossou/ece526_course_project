@@ -170,21 +170,20 @@ def query_pool(model: BasicCNN, device: torch.device, dataloaders: Dict, strateg
     return new_dataloaders
 
 
-def run_strategy(strategy_name: str, query_size: int, reverse: bool = False) -> None:
+def run_strategy(strategy_name: str, query_size: int, reverse: bool = False, time='train',
+                 model_list: List = None) -> None:
+    
     print('Running with strategy == {}'.format(strategy_name))
-
     data_dir = '../data'
     batch_size, num_epochs, lr = 8, 100, 1e-4
 
     dataloader_dict = preprocessing(data_dir, batch_size, strategy_name)
-    model = build_model()
 
     training_data_points = len(dataloader_dict['train'])
 
     # from the paper: weight_decay =  (1 - p)lsquared/N where N = |training_set|, p = 0.5, and l_squared = 0.5
     p, l_squared = 0.5, 0.5
     weight_decay = ((1-p)*l_squared)/training_data_points
-    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.CrossEntropyLoss()
 
     if not os.path.exists('../results'):
@@ -193,70 +192,81 @@ def run_strategy(strategy_name: str, query_size: int, reverse: bool = False) -> 
     if not os.path.exists('../results/{}'.format(strategy_name)):
         os.mkdir('../results/{}'.format(strategy_name))
     
-    if strategy_name != 'normal':
-        # An acquisition function is then used to select the `100` most informative images from the pool set.
-        print('...Training AL with strategy == {} and query_size == {}'.format(strategy_name,
-                                                                                                query_size))
-        for active_learning_round in range(5):
-            
-            if not os.path.exists('../results/{}/Round_{}'.format(strategy_name, active_learning_round + 1)):
-                os.mkdir('../results/{}/Round_{}'.format(strategy_name, active_learning_round + 1))
+    if time == 'train':
+        model = build_model()
+        optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
-            train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model,
-                                                                                                  dataloader_dict,
-                                                                                                  batch_size,
-                                                                                                  criterion,
-                                                                                                  optimizer,
-                                                                                                  num_epochs,
-                                                                                                  lr, device,
-                                                                                                  strategy_name,
-                                                                                                  query_size, reverse)
+        if strategy_name != 'normal':
+            # An acquisition function is then used to select the `100` most informative images from the pool set.
+            print('...Training AL with strategy == {} and query_size == {}'.format(strategy_name,
+                                                                                                    query_size))
+            for active_learning_round in range(5):
+                
+                if not os.path.exists('../results/{}/Round_{}'.format(strategy_name, active_learning_round + 1)):
+                    os.mkdir('../results/{}/Round_{}'.format(strategy_name, active_learning_round + 1))
 
+                train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model,
+                                                                                                    dataloader_dict,
+                                                                                                    batch_size,
+                                                                                                    criterion,
+                                                                                                    optimizer,
+                                                                                                    num_epochs,
+                                                                                                    lr, device,
+                                                                                                    strategy_name,
+                                                                                                    query_size, reverse)
+
+                results_frame = pd.DataFrame()
+                results_frame['train_loss'] = train_loss
+                results_frame['train_acc'] = train_acc
+                results_frame['eval_loss'] = eval_loss
+                results_frame['eval_acc'] = eval_acc
+                results_frame.to_csv('../results/{}/Round_{}/training_results_{}_{}_query_{}_{}.csv'.format(strategy_name,
+                                                                                        active_learning_round + 1,
+                                                                                        test_loss, test_acc,
+                                                                                        query_size, reverse), index=False)
+
+                dataloader_dict = query_pool(model_, device, dataloader_dict,
+                                                strategy_name, batch_size, query_size, reverse)
+
+                # delete the model to free memory
+                del model_
+                del model
+                torch.cuda.empty_cache()
+                # build the model from scratch for new training round
+                model = build_model()
+
+                training_data_points = len(dataloader_dict['train'])
+                p, l_squared = 0.5, 0.5
+                # updated weight decay for the new training set and model for next active learning round
+                weight_decay = ((1-p)*l_squared)/training_data_points
+                optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+        else:
+
+            train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model, dataloader_dict,
+                                                                                            batch_size, criterion,
+                                                                                            optimizer,
+                                                                                            num_epochs, lr, device,
+                                                                                            strategy_name, query_size, reverse)
             results_frame = pd.DataFrame()
             results_frame['train_loss'] = train_loss
             results_frame['train_acc'] = train_acc
             results_frame['eval_loss'] = eval_loss
             results_frame['eval_acc'] = eval_acc
-            results_frame.to_csv('../results/{}/Round_{}/training_results_{}_{}_query_{}_{}.csv'.format(strategy_name,
-                                                                                    active_learning_round + 1,
-                                                                                     test_loss, test_acc,
-                                                                                     query_size, reverse), index=False)
+            results_frame.to_csv('../results/{}/training_results_{}_{}_{}.csv'.format(strategy_name, test_loss, test_acc, reverse),
+                                index=False)
 
-            dataloader_dict = query_pool(model_, device, dataloader_dict,
-                                             strategy_name, batch_size, query_size, reverse)
-
-            # delete the model to free memory
             del model_
             del model
             torch.cuda.empty_cache()
-            # build the model from scratch for new training round
-            model = build_model()
-
-            training_data_points = len(dataloader_dict['train'])
-            p, l_squared = 0.5, 0.5
-            # updated weight decay for the new training set and model for next active learning round
-            weight_decay = ((1-p)*l_squared)/training_data_points
-            optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-
     else:
-
-        train_loss, train_acc, eval_loss, eval_acc, test_loss, test_acc, model_ = train_model(model, dataloader_dict,
-                                                                                          batch_size, criterion,
-                                                                                          optimizer,
-                                                                                          num_epochs, lr, device,
-                                                                                          strategy_name, query_size, reverse)
-        results_frame = pd.DataFrame()
-        results_frame['train_loss'] = train_loss
-        results_frame['train_acc'] = train_acc
-        results_frame['eval_loss'] = eval_loss
-        results_frame['eval_acc'] = eval_acc
-        results_frame.to_csv('../results/{}/training_results_{}_{}_{}.csv'.format(strategy_name, test_loss, test_acc, reverse),
-                            index=False)
-
-        del model_
-        del model
-        torch.cuda.empty_cache()
-
+        for model_path, description in model_list:
+            model = build_model()
+            checkpoints = torch.load(model_path)
+            model.load_state_dict(checkpoints)
+            _1, _2 = test_model(model, dataloader_dict, criterion, device, 'test', description)
+            del model
+            torch.cuda.empty_cache()
 
 if __name__ == '__main__':
     run_strategy('normal', 0)
@@ -268,6 +278,13 @@ if __name__ == '__main__':
         run_strategy('bald', query_size)
     
     # running baselines (with parameters stated in the paper) with `reverse` option which will take the least uncertain samples
-    run_strategy('max_entropy', 100)
-    run_strategy('mean_std', 100)
-    run_strategy('bald', 100)
+    run_strategy('max_entropy', 100, reverse=True)
+    run_strategy('mean_std', 100, reverse=True)
+    run_strategy('bald', 100, reverse=True)
+
+    # testing time to build confusion matrix maps
+    model_list = [('/home/mila/b/bonaventure.dossou/ece526_course_project/models/isic_basic_cnn_8_100_0.0001_bald_100.pt', 'Bald'),
+                  ('/home/mila/b/bonaventure.dossou/ece526_course_project/models/isic_basic_cnn_8_100_0.0001_max_entropy_70.pt', 'Max Entropy'),
+                  ('/home/mila/b/bonaventure.dossou/ece526_course_project/models/isic_basic_cnn_8_100_0.0001_mean_std_100.pt', 'Mean Std')]
+
+    run_strategy('', 0, time = 'test', model_list=model_list)
